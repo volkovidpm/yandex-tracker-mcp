@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Features
+- Add `issue_attachment_download` MCP tool to download an issue attachment ([#33](https://github.com/aikts/yandex-tracker-mcp/pull/33))
+- Add `issue_add_attachment` MCP tool to attach a local file to an issue ([#34](https://github.com/aikts/yandex-tracker-mcp/pull/34))
+  - Reads the file from the MCP server's filesystem by `file_path` and uploads it via `multipart/form-data` to the issue's attachments (max 1024 MB)
+  - Optional `filename` overrides the stored attachment name (defaults to the file's base name)
+  - Registered only when not in read-only mode and subject to `TRACKER_LIMIT_QUEUES` access checks
+
 ## [0.7.2] - 2026-06-19
 
 ### Features
