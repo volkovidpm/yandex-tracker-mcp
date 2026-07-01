@@ -2,7 +2,7 @@
 
 import datetime
 from pathlib import Path
-from typing import Annotated, Any, cast
+from typing import Annotated, Any
 
 from mcp.server import FastMCP
 from mcp.server.fastmcp import Context
