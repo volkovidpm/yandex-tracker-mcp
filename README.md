@@ -653,6 +653,33 @@ The server exposes the following tools through the MCP protocol:
     - `filename` (string, optional): Name to store the attachment as (defaults to the base name of `file_path`)
   - Returns created attachment object
 
+- **`issue_add_checklist_item`**: Add a new item to an issue's checklist
+  - Parameters:
+    - `issue_id` (string, required, format: "QUEUE-123")
+    - `text` (string, required): Checklist item text
+    - `checked` (boolean, optional): Whether the item is marked done
+    - `assignee` (string, optional): Assignee login or ID
+    - `deadline` (object, optional): `{ date, deadline_type }` where `deadline_type` is `date` or `quarter`
+  - Returns the full checklist after the item is added
+
+- **`issue_update_checklist_item`**: Update an existing checklist item (only provided fields change)
+  - Parameters:
+    - `issue_id` (string, required, format: "QUEUE-123")
+    - `item_id` (string, required): Checklist item ID (from `issue_get_checklist`)
+    - `text`, `checked`, `assignee`, `deadline` (all optional): New values
+  - Returns the full checklist after the update
+
+- **`issue_delete_checklist_item`**: Delete a single checklist item
+  - Parameters:
+    - `issue_id` (string, required, format: "QUEUE-123")
+    - `item_id` (string, required): Checklist item ID (from `issue_get_checklist`)
+  - Returns the remaining checklist
+
+- **`issue_delete_all_checklist_items`**: Delete all checklist items at once
+  - Parameters:
+    - `issue_id` (string, required, format: "QUEUE-123")
+  - Returns the (now empty) checklist
+
 - **`issue_delete_link`**: Delete a link between an issue and another issue
   - Parameters:
     - `issue_id` (string, required, format: "QUEUE-123")

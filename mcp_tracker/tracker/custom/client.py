@@ -22,6 +22,7 @@ from mcp_tracker.tracker.proto.issues import IssueProtocol
 from mcp_tracker.tracker.proto.queues import QueuesProtocol
 from mcp_tracker.tracker.proto.types.fields import GlobalField, LocalField
 from mcp_tracker.tracker.proto.types.inputs import (
+    ChecklistItemDeadlineInput,
     IssueUpdateFollower,
     IssueUpdateParent,
     IssueUpdatePriority,
@@ -762,6 +763,114 @@ class TrackerClient(QueuesProtocol, IssueProtocol, GlobalDataProtocol, UsersProt
                 raise IssueNotFound(issue_id)
             response.raise_for_status()
             return ChecklistItemList.model_validate_json(await response.read()).root
+
+    @staticmethod
+    def _checklist_deadline_body(
+        deadline: ChecklistItemDeadlineInput,
+    ) -> dict[str, Any]:
+        return {
+            "date": deadline.date.isoformat(),
+            "deadlineType": deadline.deadline_type,
+        }
+
+    @staticmethod
+    def _extract_checklist(payload: dict[str, Any]) -> list[ChecklistItem]:
+        # Checklist write endpoints return the full issue object with the
+        # updated `checklistItems` array (not a bare list like the read endpoint).
+        return ChecklistItemList.model_validate(
+            payload.get("checklistItems") or []
+        ).root
+
+    async def issue_add_checklist_item(
+        self,
+        issue_id: str,
+        *,
+        text: str,
+        checked: bool | None = None,
+        assignee: str | None = None,
+        deadline: ChecklistItemDeadlineInput | None = None,
+        auth: YandexAuth | None = None,
+    ) -> list[ChecklistItem]:
+        """Добавить пункт в чек-лист задачи."""
+        body: dict[str, Any] = {"text": text}
+        if checked is not None:
+            body["checked"] = checked
+        if assignee is not None:
+            body["assignee"] = assignee
+        if deadline is not None:
+            body["deadline"] = self._checklist_deadline_body(deadline)
+
+        async with self._session.post(
+            f"v3/issues/{issue_id}/checklistItems",
+            headers=await self._build_headers(auth),
+            json=body,
+        ) as response:
+            if response.status == 404:
+                raise IssueNotFound(issue_id)
+            response.raise_for_status()
+            return self._extract_checklist(await response.json())
+
+    async def issue_update_checklist_item(
+        self,
+        issue_id: str,
+        item_id: str,
+        *,
+        text: str | None = None,
+        checked: bool | None = None,
+        assignee: str | None = None,
+        deadline: ChecklistItemDeadlineInput | None = None,
+        auth: YandexAuth | None = None,
+    ) -> list[ChecklistItem]:
+        """Изменить пункт чек-листа (текст / отметку / исполнителя / дедлайн)."""
+        body: dict[str, Any] = {}
+        if text is not None:
+            body["text"] = text
+        if checked is not None:
+            body["checked"] = checked
+        if assignee is not None:
+            body["assignee"] = assignee
+        if deadline is not None:
+            body["deadline"] = self._checklist_deadline_body(deadline)
+
+        async with self._session.patch(
+            f"v3/issues/{issue_id}/checklistItems/{item_id}",
+            headers=await self._build_headers(auth),
+            json=body,
+        ) as response:
+            if response.status == 404:
+                raise IssueNotFound(issue_id)
+            response.raise_for_status()
+            return self._extract_checklist(await response.json())
+
+    async def issue_delete_checklist_item(
+        self,
+        issue_id: str,
+        item_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> list[ChecklistItem]:
+        """Удалить один пункт чек-листа."""
+        async with self._session.delete(
+            f"v3/issues/{issue_id}/checklistItems/{item_id}",
+            headers=await self._build_headers(auth),
+        ) as response:
+            if response.status == 404:
+                raise IssueNotFound(issue_id)
+            response.raise_for_status()
+            return self._extract_checklist(await response.json())
+
+    async def issue_delete_all_checklist_items(
+        self, issue_id: str, *, auth: YandexAuth | None = None
+    ) -> list[ChecklistItem]:
+        """Удалить весь чек-лист задачи."""
+        async with self._session.delete(
+            f"v3/issues/{issue_id}/checklists",
+            headers=await self._build_headers(auth),
+        ) as response:
+            if response.status == 404:
+                raise IssueNotFound(issue_id)
+            response.raise_for_status()
+            return self._extract_checklist(await response.json())
 
     async def issues_count(self, query: str, *, auth: YandexAuth | None = None) -> int:
         body: dict[str, Any] = {

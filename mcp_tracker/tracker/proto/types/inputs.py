@@ -1,4 +1,19 @@
+import datetime
+
 from pydantic import BaseModel, Field
+
+
+class ChecklistItemDeadlineInput(BaseModel):
+    """Deadline reference for a checklist item."""
+
+    date: datetime.datetime = Field(
+        ...,
+        description="Deadline date/time (ISO 8601, e.g. '2026-07-10T00:00:00.000+0300').",
+    )
+    deadline_type: str = Field(
+        "date",
+        description="Deadline type: 'date' (a specific day) or 'quarter'.",
+    )
 
 
 class IssueUpdateParent(BaseModel):

@@ -16,6 +16,7 @@ from mcp_tracker.mcp.tools._access import check_issue_access, check_queue_access
 from mcp_tracker.mcp.utils import get_yandex_auth
 from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.proto.types.inputs import (
+    ChecklistItemDeadlineInput,
     IssueUpdateFollower,
     IssueUpdateParent,
     IssueUpdatePriority,
@@ -24,6 +25,7 @@ from mcp_tracker.tracker.proto.types.inputs import (
     IssueUpdateType,
 )
 from mcp_tracker.tracker.proto.types.issues import (
+    ChecklistItem,
     Issue,
     IssueAttachment,
     IssueComment,
@@ -519,6 +521,138 @@ def register_issue_write_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
             issue_id,
             content=content,
             filename=filename or path.name,
+            auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Add Checklist Item",
+        description=(
+            "Add a new item to a Yandex Tracker issue's checklist. "
+            "Returns the full checklist after the item is added. "
+            "Use `issue_get_checklist` to read existing items (and their IDs)."
+        ),
+        annotations=ToolAnnotations(readOnlyHint=False),
+    )
+    async def issue_add_checklist_item(
+        ctx: Context[Any, AppContext],
+        issue_id: IssueID,
+        text: Annotated[
+            str,
+            Field(description="Checklist item text."),
+        ],
+        checked: Annotated[
+            bool | None,
+            Field(description="Whether the item is marked done. Default: false."),
+        ] = None,
+        assignee: Annotated[
+            str | None,
+            Field(description="Assignee for the item (user login or ID)."),
+        ] = None,
+        deadline: Annotated[
+            ChecklistItemDeadlineInput | None,
+            Field(description="Optional deadline for the item."),
+        ] = None,
+    ) -> list[ChecklistItem]:
+        check_issue_access(settings, issue_id)
+
+        return (
+            await ctx.request_context.lifespan_context.issues.issue_add_checklist_item(
+                issue_id,
+                text=text,
+                checked=checked,
+                assignee=assignee,
+                deadline=deadline,
+                auth=get_yandex_auth(ctx),
+            )
+        )
+
+    @mcp.tool(
+        title="Update Checklist Item",
+        description=(
+            "Update an existing checklist item on a Yandex Tracker issue "
+            "(text, done mark, assignee, or deadline). Only the provided fields "
+            "are changed. Get the item ID from `issue_get_checklist`. "
+            "Returns the full checklist after the update."
+        ),
+        annotations=ToolAnnotations(readOnlyHint=False),
+    )
+    async def issue_update_checklist_item(
+        ctx: Context[Any, AppContext],
+        issue_id: IssueID,
+        item_id: Annotated[
+            str,
+            Field(description="Checklist item ID (from issue_get_checklist)."),
+        ],
+        text: Annotated[
+            str | None,
+            Field(description="New item text."),
+        ] = None,
+        checked: Annotated[
+            bool | None,
+            Field(description="Mark the item done (true) or not done (false)."),
+        ] = None,
+        assignee: Annotated[
+            str | None,
+            Field(description="New assignee (user login or ID)."),
+        ] = None,
+        deadline: Annotated[
+            ChecklistItemDeadlineInput | None,
+            Field(description="New deadline for the item."),
+        ] = None,
+    ) -> list[ChecklistItem]:
+        check_issue_access(settings, issue_id)
+
+        return await ctx.request_context.lifespan_context.issues.issue_update_checklist_item(
+            issue_id,
+            item_id,
+            text=text,
+            checked=checked,
+            assignee=assignee,
+            deadline=deadline,
+            auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Delete Checklist Item",
+        description=(
+            "Delete a single item from a Yandex Tracker issue's checklist. "
+            "Get the item ID from `issue_get_checklist`. "
+            "Returns the remaining checklist."
+        ),
+        annotations=ToolAnnotations(readOnlyHint=False),
+    )
+    async def issue_delete_checklist_item(
+        ctx: Context[Any, AppContext],
+        issue_id: IssueID,
+        item_id: Annotated[
+            str,
+            Field(description="Checklist item ID (from issue_get_checklist)."),
+        ],
+    ) -> list[ChecklistItem]:
+        check_issue_access(settings, issue_id)
+
+        return await ctx.request_context.lifespan_context.issues.issue_delete_checklist_item(
+            issue_id,
+            item_id,
+            auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Delete Entire Checklist",
+        description=(
+            "Delete ALL items from a Yandex Tracker issue's checklist at once. "
+            "Returns the (now empty) checklist."
+        ),
+        annotations=ToolAnnotations(readOnlyHint=False),
+    )
+    async def issue_delete_all_checklist_items(
+        ctx: Context[Any, AppContext],
+        issue_id: IssueID,
+    ) -> list[ChecklistItem]:
+        check_issue_access(settings, issue_id)
+
+        return await ctx.request_context.lifespan_context.issues.issue_delete_all_checklist_items(
+            issue_id,
             auth=get_yandex_auth(ctx),
         )
 

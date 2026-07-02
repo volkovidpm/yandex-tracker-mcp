@@ -206,6 +206,65 @@ class TestCachingIssuesProtocol:
         mock_original.issue_get_checklist.assert_called_once_with("TEST-1", auth=None)
         assert result == mock_original.issue_get_checklist.return_value
 
+    async def test_issue_add_checklist_item_calls_original(
+        self, caching_issues_protocol: Any, mock_original: AsyncMock
+    ) -> None:
+        result = await caching_issues_protocol.issue_add_checklist_item(
+            "TEST-1", text="do it"
+        )
+
+        mock_original.issue_add_checklist_item.assert_called_once_with(
+            "TEST-1",
+            text="do it",
+            checked=None,
+            assignee=None,
+            deadline=None,
+            auth=None,
+        )
+        assert result == mock_original.issue_add_checklist_item.return_value
+
+    async def test_issue_update_checklist_item_calls_original(
+        self, caching_issues_protocol: Any, mock_original: AsyncMock
+    ) -> None:
+        result = await caching_issues_protocol.issue_update_checklist_item(
+            "TEST-1", "item-1", checked=True
+        )
+
+        mock_original.issue_update_checklist_item.assert_called_once_with(
+            "TEST-1",
+            "item-1",
+            text=None,
+            checked=True,
+            assignee=None,
+            deadline=None,
+            auth=None,
+        )
+        assert result == mock_original.issue_update_checklist_item.return_value
+
+    async def test_issue_delete_checklist_item_calls_original(
+        self, caching_issues_protocol: Any, mock_original: AsyncMock
+    ) -> None:
+        result = await caching_issues_protocol.issue_delete_checklist_item(
+            "TEST-1", "item-1"
+        )
+
+        mock_original.issue_delete_checklist_item.assert_called_once_with(
+            "TEST-1", "item-1", auth=None
+        )
+        assert result == mock_original.issue_delete_checklist_item.return_value
+
+    async def test_issue_delete_all_checklist_items_calls_original(
+        self, caching_issues_protocol: Any, mock_original: AsyncMock
+    ) -> None:
+        result = await caching_issues_protocol.issue_delete_all_checklist_items(
+            "TEST-1"
+        )
+
+        mock_original.issue_delete_all_checklist_items.assert_called_once_with(
+            "TEST-1", auth=None
+        )
+        assert result == mock_original.issue_delete_all_checklist_items.return_value
+
     async def test_issue_get_transitions_calls_original(
         self,
         caching_issues_protocol: Any,

@@ -10,6 +10,12 @@ All notable changes to this project will be documented in this file.
   - Reads the file from the MCP server's filesystem by `file_path` and uploads it via `multipart/form-data` to the issue's attachments (max 1024 MB)
   - Optional `filename` overrides the stored attachment name (defaults to the file's base name)
   - Registered only when not in read-only mode and subject to `TRACKER_LIMIT_QUEUES` access checks
+- Add checklist write MCP tools to manage an issue's checklist:
+  - `issue_add_checklist_item` — add an item (`text`, optional `checked`, `assignee`, `deadline`)
+  - `issue_update_checklist_item` — edit an item by id (only the provided fields change)
+  - `issue_delete_checklist_item` — delete a single item by id
+  - `issue_delete_all_checklist_items` — clear the whole checklist
+  - All return the updated checklist, are registered only when not in read-only mode, and are subject to `TRACKER_LIMIT_QUEUES` access checks
 
 ## [0.7.2] - 2026-06-19
 
