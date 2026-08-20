@@ -832,6 +832,18 @@ The server exposes the following tools through the MCP protocol:
   - Supports all query language features: field filtering, date functions, logical operators, and complex expressions
   - Useful for analytics, reporting, and understanding issue distribution without retrieving full issue data
 
+- **`issues_find_by_local_field`**: Find issues in a queue by the value of a queue-local field, working around Tracker fields that aren't registered as search filters
+  - Parameters:
+    - `queue` (string, required): Queue key to search in, e.g. `SUP`
+    - `field_key` (string, required): Local field key to match, e.g. `organization` (see `queue_get_fields`)
+    - `values` (list of strings, required): Field values to match, case-insensitive exact match
+    - `extra_query` (string, optional): Additional YQL AND-ed with the queue filter, e.g. `Resolution: unresolved()`
+    - `max_pages` (integer, optional, default: 50): Safety cap on the number of 100-issue pages scanned
+  - Returns `{matches: [...], pages_scanned, truncated}` — each match has `key`, `summary`, `status`, `assignee`, `created_at`, `field_value`
+  - **Why this exists**: many queue-local text fields (e.g. a "Client"/"Organization" field on a support queue) are not registered as Tracker search filters. Querying them via `issues_find`/`issues_count` with `<QUEUE>.<field_key>: "value"` fails with HTTP 422 `Фильтр <field> не существует`, even though the field is visible and populated on every issue. This tool pages through the queue's issues via `issues_find` and matches the field value client-side instead
+  - Slower than a real filter (bounded by `max_pages`) — if `truncated` comes back `true`, increase `max_pages` to scan further back
+  - Respects `TRACKER_LIMIT_QUEUES` restrictions
+
 </details>
 
 ## http Transport

@@ -19,9 +19,26 @@
 - Нюанс истории: `docs/IMPROVEMENT-PLAN.md` случайно попал в коммит #34 (`1d65017`) — косметика, на
   работу не влияет; при желании можно вынести отдельным коммитом.
 
+**Сделано — фича 5 (поиск по нефильтруемому локальному полю), ветка `feat/attachments`:**
+- Обнаружено на живой задаче (открытые тикеты Oldos в SUP): `issues_find`/`issues_count` с
+  `SUP.organization: "Oldos"` падают 422 `Фильтр organization не существует` — подтверждено прямым
+  curl к API, это ограничение самого Трекера (поле «Организация»/«Клиент» не зарегистрировано как
+  фильтр), а не баг обёртки. Патчить синтаксис бесполезно.
+- Добавлен tool `issues_find_by_local_field(queue, field_key, values, extra_query?, max_pages=50)` —
+  резолвит id локального поля через `queues_get_local_fields`, постранично гоняет `issues_find` и
+  сравнивает значение поля на стороне клиента (`issue.model_extra`, `extra="allow"` уже в `Issue`).
+  Возвращает `{matches, pages_scanned, truncated}`. Read-only, под `check_queue_access`/
+  `TRACKER_LIMIT_QUEUES`. Типы — `IssueLocalFieldMatch`/`IssuesByLocalFieldResult` (MCP-only, не
+  сущности Трекера, по образцу `DownloadedIssueAttachment`).
+- 6 новых тестов (`TestIssuesFindByLocalField`) + запись в `READ_ONLY_TOOL_NAMES`. Всего **621
+  тестов зелёные** (было 613), mypy/ruff чисто. Проверено на живом Трекере (реальный TrackerClient,
+  без mock) — нашёл все открытые тикеты Oldos в SUP, совпало с ручной выгрузкой.
+- README/README_ru/manifest/CHANGELOG обновлены.
+
 **Что дальше (по убыванию приоритета):**
-1. Решить с Игорем: подключать форк в живой Claude Desktop сейчас (ради вложений) или после всех фич.
-   Подключение — см. раздел «Выбранный формат», п.3 (правка `claude_desktop_config.json` + рестарт).
+1. Решить с Игорем: подключать форк в живой Claude Desktop сейчас (ради вложений + нового поиска)
+   или после всех фич. Подключение — см. раздел «Выбранный формат», п.3 (правка
+   `claude_desktop_config.json` + рестарт).
 2. Смержить `feat/attachments` → `main` форка (тогда фичи копятся на main, конфиг смотрит на `@main`).
 3. Писать оставшиеся фичи (в апстриме и открытых PR их нет): **1. доски/спринты**, **2. bulk**,
    **4. чек-листы на запись**. Начинать с фичи 1 (самая изолированная — новый протокол `boards.py`).

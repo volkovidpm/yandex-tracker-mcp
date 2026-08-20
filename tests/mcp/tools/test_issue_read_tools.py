@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 
 from mcp.client.session import ClientSession
 
+from mcp_tracker.tracker.proto.types.fields import LocalField
 from mcp_tracker.tracker.proto.types.issues import (
     ChangelogComments,
     ChangelogEntry,
@@ -17,6 +18,7 @@ from mcp_tracker.tracker.proto.types.issues import (
     IssueTransition,
     Worklog,
 )
+from mcp_tracker.tracker.proto.types.refs import StatusReference, UserReference
 from tests.mcp.conftest import get_tool_result_content
 
 
@@ -209,6 +211,182 @@ class TestIssuesCount:
         mock_issues_protocol.issues_count.assert_called_once()
         content = get_tool_result_content(result)
         assert content == 42
+
+
+def _issue_with_local_field(field_id: str, value: str, **kwargs: object) -> Issue:
+    """Build an Issue fixture with a queue-local field set via passthrough (extra="allow")."""
+    issue = Issue.model_construct(**kwargs)  # type: ignore[arg-type]
+    setattr(issue, field_id, value)
+    return issue
+
+
+class TestIssuesFindByLocalField:
+    async def test_finds_matching_issues_case_insensitively(
+        self,
+        client_session: ClientSession,
+        mock_queues_protocol: AsyncMock,
+        mock_issues_protocol: AsyncMock,
+        sample_local_field: LocalField,
+    ) -> None:
+        mock_queues_protocol.queues_get_local_fields.return_value = [sample_local_field]
+        matching_issue = _issue_with_local_field(
+            sample_local_field.id,
+            "Oldos",
+            key="SUP-1",
+            summary="Oldos ticket",
+            status=StatusReference.model_construct(id="1", key="open", display="Open"),
+            assignee=UserReference.model_construct(id="u1", display="Anton"),
+        )
+        other_issue = _issue_with_local_field(
+            sample_local_field.id,
+            "Mindbox",
+            key="SUP-2",
+            summary="Mindbox ticket",
+        )
+        mock_issues_protocol.issues_find.side_effect = [[matching_issue, other_issue]]
+
+        result = await client_session.call_tool(
+            "issues_find_by_local_field",
+            {
+                "queue": "SUP",
+                "field_key": sample_local_field.key,
+                "values": ["oldos"],
+            },
+        )
+
+        assert not result.isError
+        mock_queues_protocol.queues_get_local_fields.assert_called_once()
+        assert mock_queues_protocol.queues_get_local_fields.call_args.args == ("SUP",)
+        content = get_tool_result_content(result)
+        assert content["pages_scanned"] == 1
+        assert content["truncated"] is False
+        assert len(content["matches"]) == 1
+        assert content["matches"][0]["key"] == "SUP-1"
+        assert content["matches"][0]["field_value"] == "Oldos"
+
+    async def test_builds_query_from_queue_and_extra_query(
+        self,
+        client_session: ClientSession,
+        mock_queues_protocol: AsyncMock,
+        mock_issues_protocol: AsyncMock,
+        sample_local_field: LocalField,
+    ) -> None:
+        mock_queues_protocol.queues_get_local_fields.return_value = [sample_local_field]
+        mock_issues_protocol.issues_find.side_effect = [[]]
+
+        result = await client_session.call_tool(
+            "issues_find_by_local_field",
+            {
+                "queue": "SUP",
+                "field_key": sample_local_field.key,
+                "values": ["Oldos"],
+                "extra_query": "Resolution: unresolved()",
+            },
+        )
+
+        assert not result.isError
+        call_kwargs = mock_issues_protocol.issues_find.call_args.kwargs
+        assert call_kwargs["query"] == 'Queue: "SUP" AND Resolution: unresolved()'
+        assert call_kwargs["per_page"] == 100
+        assert call_kwargs["page"] == 1
+
+    async def test_stops_at_max_pages_and_reports_truncated(
+        self,
+        client_session: ClientSession,
+        mock_queues_protocol: AsyncMock,
+        mock_issues_protocol: AsyncMock,
+        sample_local_field: LocalField,
+    ) -> None:
+        mock_queues_protocol.queues_get_local_fields.return_value = [sample_local_field]
+        full_page = [
+            _issue_with_local_field(sample_local_field.id, "Other", key=f"SUP-{i}")
+            for i in range(100)
+        ]
+        mock_issues_protocol.issues_find.return_value = full_page
+
+        result = await client_session.call_tool(
+            "issues_find_by_local_field",
+            {
+                "queue": "SUP",
+                "field_key": sample_local_field.key,
+                "values": ["Oldos"],
+                "max_pages": 2,
+            },
+        )
+
+        assert not result.isError
+        content = get_tool_result_content(result)
+        assert content["truncated"] is True
+        assert content["pages_scanned"] == 2
+        assert mock_issues_protocol.issues_find.call_count == 2
+
+    async def test_stops_early_on_short_page(
+        self,
+        client_session: ClientSession,
+        mock_queues_protocol: AsyncMock,
+        mock_issues_protocol: AsyncMock,
+        sample_local_field: LocalField,
+    ) -> None:
+        mock_queues_protocol.queues_get_local_fields.return_value = [sample_local_field]
+        mock_issues_protocol.issues_find.side_effect = [
+            [_issue_with_local_field(sample_local_field.id, "Oldos", key="SUP-1")],
+        ]
+
+        result = await client_session.call_tool(
+            "issues_find_by_local_field",
+            {
+                "queue": "SUP",
+                "field_key": sample_local_field.key,
+                "values": ["Oldos"],
+                "max_pages": 50,
+            },
+        )
+
+        assert not result.isError
+        content = get_tool_result_content(result)
+        assert content["truncated"] is False
+        assert content["pages_scanned"] == 1
+        mock_issues_protocol.issues_find.assert_called_once()
+
+    async def test_unknown_field_key_raises_error(
+        self,
+        client_session: ClientSession,
+        mock_queues_protocol: AsyncMock,
+        mock_issues_protocol: AsyncMock,
+        sample_local_field: LocalField,
+    ) -> None:
+        mock_queues_protocol.queues_get_local_fields.return_value = [sample_local_field]
+
+        result = await client_session.call_tool(
+            "issues_find_by_local_field",
+            {
+                "queue": "SUP",
+                "field_key": "doesNotExist",
+                "values": ["Oldos"],
+            },
+        )
+
+        assert result.isError
+        mock_issues_protocol.issues_find.assert_not_called()
+
+    async def test_respects_queue_limits(
+        self,
+        client_session_with_limits: ClientSession,
+        mock_queues_protocol: AsyncMock,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        result = await client_session_with_limits.call_tool(
+            "issues_find_by_local_field",
+            {
+                "queue": "RESTRICTED",
+                "field_key": "organization",
+                "values": ["Oldos"],
+            },
+        )
+
+        assert result.isError
+        mock_queues_protocol.queues_get_local_fields.assert_not_called()
+        mock_issues_protocol.issues_find.assert_not_called()
 
 
 class TestIssueGetWorklogs:

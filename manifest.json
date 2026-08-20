@@ -214,6 +214,10 @@
     {
       "name": "issues_count",
       "description": "Count issues matching a query using Yandex Tracker Query Language"
+    },
+    {
+      "name": "issues_find_by_local_field",
+      "description": "Find issues in a queue by a local field's value, for fields not registered as Tracker search filters"
     }
   ],
   "user_config": {

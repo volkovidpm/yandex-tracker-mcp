@@ -16,6 +16,10 @@ All notable changes to this project will be documented in this file.
   - `issue_delete_checklist_item` — delete a single item by id
   - `issue_delete_all_checklist_items` — clear the whole checklist
   - All return the updated checklist, are registered only when not in read-only mode, and are subject to `TRACKER_LIMIT_QUEUES` access checks
+- Add `issues_find_by_local_field` MCP tool to find issues by a queue-local field's value
+  - Works around queue-local text fields (e.g. a "Client"/"Organization" field on a support queue) that aren't registered as Tracker search filters — querying them via `issues_find`/`issues_count` with `<QUEUE>.<field_key>: "value"` fails with HTTP 422 `Фильтр <field> не существует` even though the field is populated on every issue
+  - Pages through the queue's issues via `issues_find` and matches the field value client-side (case-insensitive exact match); bounded by `max_pages` (default 50), reports `truncated` if the cap was hit
+  - Subject to `TRACKER_LIMIT_QUEUES` access checks
 
 ## [0.7.2] - 2026-06-19
 

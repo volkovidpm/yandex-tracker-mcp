@@ -144,6 +144,28 @@ class DownloadedIssueAttachment(BaseModel):
     size: int
 
 
+class IssueLocalFieldMatch(BaseModel):
+    """A single issue matched by `issues_find_by_local_field`."""
+
+    key: str
+    summary: str | None = None
+    status: str | None = None
+    assignee: str | None = None
+    created_at: datetime.datetime | None = None
+    field_value: str
+
+
+class IssuesByLocalFieldResult(BaseModel):
+    """Result of `issues_find_by_local_field`: matches plus scan bookkeeping."""
+
+    matches: list[IssueLocalFieldMatch]
+    pages_scanned: int
+    truncated: bool = Field(
+        description="True if max_pages was hit before the last page of results — "
+        "increase max_pages to scan further back."
+    )
+
+
 class ChecklistItemDeadline(BaseModel):
     date: datetime.datetime
     deadline_type: str = Field(

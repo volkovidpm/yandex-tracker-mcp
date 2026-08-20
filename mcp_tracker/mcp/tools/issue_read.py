@@ -10,6 +10,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from mcp_tracker.mcp.context import AppContext
+from mcp_tracker.mcp.errors import TrackerError
 from mcp_tracker.mcp.params import (
     CursorPerPageParam,
     IssueID,
@@ -18,7 +19,7 @@ from mcp_tracker.mcp.params import (
     PerPageParam,
     YTQuery,
 )
-from mcp_tracker.mcp.tools._access import check_issue_access
+from mcp_tracker.mcp.tools._access import check_issue_access, check_queue_access
 from mcp_tracker.mcp.utils import (
     get_yandex_auth,
     save_issue_attachment_file,
@@ -34,6 +35,8 @@ from mcp_tracker.tracker.proto.types.issues import (
     IssueComment,
     IssueFieldsEnum,
     IssueLink,
+    IssueLocalFieldMatch,
+    IssuesByLocalFieldResult,
     IssueTransition,
     Worklog,
 )
@@ -154,6 +157,108 @@ def register_issue_read_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         return await ctx.request_context.lifespan_context.issues.issues_count(
             query,
             auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Find Issues By Local Field",
+        description=(
+            "Find issues in a queue by the value of a queue-local field (e.g. 'organization' / "
+            "'client' in a support queue). Use this instead of `issues_find`/`issues_count` when "
+            'Tracker rejects `<QUEUE>.<field_key>: "value"` in the query with a 422 error '
+            "'Фильтр <field> не существует' — that means the field isn't registered as a search "
+            "filter on Tracker's side, which is common for plain text local fields. This tool "
+            "works around it by paging through the queue's issues and matching the field value "
+            "client-side, so it is slower than a real filter and bounded by max_pages."
+        ),
+        annotations=ToolAnnotations(readOnlyHint=True),
+    )
+    async def issues_find_by_local_field(
+        ctx: Context[Any, AppContext],
+        queue: Annotated[str, Field(description="Queue key to search in, e.g. 'SUP'")],
+        field_key: Annotated[
+            str,
+            Field(
+                description="Local field key to match, e.g. 'organization' "
+                "(see queue_get_fields for available keys)"
+            ),
+        ],
+        values: Annotated[
+            list[str],
+            Field(
+                description="Field values to match, case-insensitive exact match. "
+                "An issue is a hit if its field value equals any of these."
+            ),
+        ],
+        extra_query: Annotated[
+            str | None,
+            Field(
+                description="Additional YQL clause AND-ed with the queue filter, "
+                "e.g. 'Resolution: unresolved()'"
+            ),
+        ] = None,
+        max_pages: Annotated[
+            int,
+            Field(
+                description="Safety cap on the number of 100-issue pages scanned",
+                ge=1,
+                le=200,
+            ),
+        ] = 50,
+    ) -> IssuesByLocalFieldResult:
+        check_queue_access(settings, queue)
+
+        auth = get_yandex_auth(ctx)
+        lifespan = ctx.request_context.lifespan_context
+
+        local_fields = await lifespan.queues.queues_get_local_fields(queue, auth=auth)
+        field = next((f for f in local_fields if f.key == field_key), None)
+        if field is None or field.id is None:
+            known = sorted(f.key for f in local_fields if f.key)
+            raise TrackerError(
+                f"Local field `{field_key}` not found in queue `{queue}`. "
+                f"Available local fields: {', '.join(known)}"
+            )
+
+        query = f'Queue: "{queue}"'
+        if extra_query:
+            query = f"{query} AND {extra_query}"
+
+        wanted = {v.strip().lower() for v in values}
+        matches: list[IssueLocalFieldMatch] = []
+        pages_scanned = 0
+        truncated = False
+
+        for page in range(1, max_pages + 1):
+            issues = await lifespan.issues.issues_find(
+                query=query, per_page=100, page=page, auth=auth
+            )
+            pages_scanned = page
+            if not issues:
+                break
+
+            for issue in issues:
+                raw_value = (issue.model_extra or {}).get(field.id)
+                if isinstance(raw_value, str) and raw_value.strip().lower() in wanted:
+                    matches.append(
+                        IssueLocalFieldMatch(
+                            key=issue.key or "",
+                            summary=issue.summary,
+                            status=issue.status.display if issue.status else None,
+                            assignee=issue.assignee.display if issue.assignee else None,
+                            created_at=issue.created_at,
+                            field_value=raw_value,
+                        )
+                    )
+
+            if len(issues) < 100:
+                break
+        else:
+            truncated = True
+
+        return IssuesByLocalFieldResult(
+            matches=matches,
+            pages_scanned=pages_scanned,
+            truncated=truncated,
         )
 
     @mcp.tool(
