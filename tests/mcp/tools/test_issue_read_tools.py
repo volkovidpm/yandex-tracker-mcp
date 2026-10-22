@@ -231,17 +231,17 @@ class TestIssuesFindByLocalField:
         mock_queues_protocol.queues_get_local_fields.return_value = [sample_local_field]
         matching_issue = _issue_with_local_field(
             sample_local_field.id,
-            "Oldos",
-            key="SUP-1",
-            summary="Oldos ticket",
+            "Acme",
+            key="HELP-1",
+            summary="Acme ticket",
             status=StatusReference.model_construct(id="1", key="open", display="Open"),
             assignee=UserReference.model_construct(id="u1", display="Anton"),
         )
         other_issue = _issue_with_local_field(
             sample_local_field.id,
-            "Mindbox",
-            key="SUP-2",
-            summary="Mindbox ticket",
+            "Globex",
+            key="HELP-2",
+            summary="Globex ticket",
         )
         mock_issues_protocol.issues_find.side_effect = [[matching_issue, other_issue]]
 
@@ -250,7 +250,7 @@ class TestIssuesFindByLocalField:
             {
                 "queue": "SUP",
                 "field_key": sample_local_field.key,
-                "values": ["oldos"],
+                "values": ["acme"],
             },
         )
 
@@ -261,8 +261,8 @@ class TestIssuesFindByLocalField:
         assert content["pages_scanned"] == 1
         assert content["truncated"] is False
         assert len(content["matches"]) == 1
-        assert content["matches"][0]["key"] == "SUP-1"
-        assert content["matches"][0]["field_value"] == "Oldos"
+        assert content["matches"][0]["key"] == "HELP-1"
+        assert content["matches"][0]["field_value"] == "Acme"
 
     async def test_builds_query_from_queue_and_extra_query(
         self,
@@ -279,7 +279,7 @@ class TestIssuesFindByLocalField:
             {
                 "queue": "SUP",
                 "field_key": sample_local_field.key,
-                "values": ["Oldos"],
+                "values": ["Acme"],
                 "extra_query": "Resolution: unresolved()",
             },
         )
@@ -309,7 +309,7 @@ class TestIssuesFindByLocalField:
             {
                 "queue": "SUP",
                 "field_key": sample_local_field.key,
-                "values": ["Oldos"],
+                "values": ["Acme"],
                 "max_pages": 2,
             },
         )
@@ -329,7 +329,7 @@ class TestIssuesFindByLocalField:
     ) -> None:
         mock_queues_protocol.queues_get_local_fields.return_value = [sample_local_field]
         mock_issues_protocol.issues_find.side_effect = [
-            [_issue_with_local_field(sample_local_field.id, "Oldos", key="SUP-1")],
+            [_issue_with_local_field(sample_local_field.id, "Acme", key="HELP-1")],
         ]
 
         result = await client_session.call_tool(
@@ -337,7 +337,7 @@ class TestIssuesFindByLocalField:
             {
                 "queue": "SUP",
                 "field_key": sample_local_field.key,
-                "values": ["Oldos"],
+                "values": ["Acme"],
                 "max_pages": 50,
             },
         )
@@ -362,7 +362,7 @@ class TestIssuesFindByLocalField:
             {
                 "queue": "SUP",
                 "field_key": "doesNotExist",
-                "values": ["Oldos"],
+                "values": ["Acme"],
             },
         )
 
@@ -380,7 +380,7 @@ class TestIssuesFindByLocalField:
             {
                 "queue": "RESTRICTED",
                 "field_key": "organization",
-                "values": ["Oldos"],
+                "values": ["Acme"],
             },
         )
 

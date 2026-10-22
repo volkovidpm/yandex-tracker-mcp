@@ -20,8 +20,8 @@
   работу не влияет; при желании можно вынести отдельным коммитом.
 
 **Сделано — фича 5 (поиск по нефильтруемому локальному полю), ветка `feat/attachments`:**
-- Обнаружено на живой задаче (открытые тикеты Oldos в SUP): `issues_find`/`issues_count` с
-  `SUP.organization: "Oldos"` падают 422 `Фильтр organization не существует` — подтверждено прямым
+- Обнаружено на живой задаче (открытые тикеты одного клиента в очереди поддержки): `issues_find`/`issues_count` с
+  `HELP.organization: "Acme"` падают 422 `Фильтр organization не существует` — подтверждено прямым
   curl к API, это ограничение самого Трекера (поле «Организация»/«Клиент» не зарегистрировано как
   фильтр), а не баг обёртки. Патчить синтаксис бесполезно.
 - Добавлен tool `issues_find_by_local_field(queue, field_key, values, extra_query?, max_pages=50)` —
@@ -32,7 +32,7 @@
   сущности Трекера, по образцу `DownloadedIssueAttachment`).
 - 6 новых тестов (`TestIssuesFindByLocalField`) + запись в `READ_ONLY_TOOL_NAMES`. Всего **621
   тестов зелёные** (было 613), mypy/ruff чисто. Проверено на живом Трекере (реальный TrackerClient,
-  без mock) — нашёл все открытые тикеты Oldos в SUP, совпало с ручной выгрузкой.
+  без mock) — нашёл все открытые тикеты клиента в очереди поддержки, совпало с ручной выгрузкой.
 - README/README_ru/manifest/CHANGELOG обновлены.
 
 **Что дальше (по убыванию приоритета):**
@@ -50,7 +50,7 @@
 
 ## Контекст
 
-Игорь (PM в Intensa) использует MCP-сервер Яндекс.Трекера в Claude Code / Claude Desktop.
+Игорь (PM) использует MCP-сервер Яндекс.Трекера в Claude Code / Claude Desktop.
 Изначальный запрос: «доработать MCP, чтобы он подхватывал описание задач» (минимум) и
 «добавить полезные возможности синхронизации с Трекером» (максимум).
 
@@ -62,14 +62,14 @@
 ```
 "yandex-tracker": {
   "command": "/bin/sh",
-  "args": ["-c", "set -a; . \"$HOME/.config/intensa/tracker.env\"; exec /Users/igorvolkov/.local/bin/uvx --python 3.12 yandex-tracker-mcp@latest"]
+  "args": ["-c", "set -a; . \"$HOME/.config/personal/tracker.env\"; exec /Users/igorvolkov/.local/bin/uvx --python 3.12 yandex-tracker-mcp@latest"]
 }
 ```
 
 **Задача-минимум снята.** В актуальной версии `issue_get` отдаёт `description` по умолчанию
 (`include_description=True`), а кастомные/локальные поля проходят через passthrough
-(`extra="allow"` в модели `Issue`). Проверено эмпирически на живой OLDOS-551 — полный markdown
-описания и все локальные поля (`planfaktkoplate`, `otsenkadljaklienta`, `willUseAI` и пр.)
+(`extra="allow"` в модели `Issue`). Проверено эмпирически на живой задаче — полный markdown
+описания и все локальные поля
 приходят. Раньше MCP «не видел описание» из-за старой версии — сейчас это не так.
 Нюанс: в `issues_find` описание по умолчанию выключено (`include_description=False`, чтобы не
 раздувать контекст) — включается флагом. Отдельная доработка ради описания не нужна.
@@ -100,13 +100,13 @@ pydantic-модели, гард read-only и обработку org-id — в ф
 3. Переключить запуск на форк: в `claude_desktop_config.json` заменить
    `yandex-tracker-mcp@latest` на
    `uvx --from git+https://github.com/volkovidpm/yandex-tracker-mcp@main yandex-tracker-mcp`
-   (обёртка с `. "$HOME/.config/intensa/tracker.env"` сохраняется без изменений).
+   (обёртка с `. "$HOME/.config/personal/tracker.env"` сохраняется без изменений).
 4. Открыть PR-ы в апстрим. Если вмержат — вернуться на `@latest`, форк-запуск убрать.
    Пока нет — работаем с форка, периодически `git rebase upstream/main`.
 
 ## Аутентификация (для справки при реализации)
 
-- Env (из `~/.config/intensa/tracker.env`): `TRACKER_TOKEN` (OAuth), `TRACKER_CLOUD_ORG_ID`.
+- Env (из `~/.config/personal/tracker.env`): `TRACKER_TOKEN` (OAuth), `TRACKER_CLOUD_ORG_ID`.
 - Заголовки: `Authorization: OAuth <token>`, `X-Cloud-Org-ID: <id>` (или `X-Org-ID` для не-облачных).
 - База: `https://api.tracker.yandex.net`. Сборка заголовков — `TrackerClient._build_headers(auth)`.
 
@@ -169,7 +169,7 @@ pydantic-модели, гард read-only и обработку org-id — в ф
 ## Верификация
 
 - Локально из форка: `uv run` + MCP Inspector (`mcp dev`) — прогнать каждый новый tool на реальной
-  задаче (песочная OLDOS-* или тестовая очередь).
+  задаче (песочная или тестовая очередь).
 - Read-only: с `TRACKER_READ_ONLY=true` write-tools (bulk, checklist-write, upload) не должны
   регистрироваться; read-tools (доски, download) — должны.
 - Тесты пакета: `pytest` (в репозитории есть CI) — добавить кейсы по образцу существующих.
